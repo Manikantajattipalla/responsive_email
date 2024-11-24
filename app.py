@@ -1,88 +1,68 @@
-import os
 from flask import Flask, request, jsonify, render_template
 import openai
 from dotenv import load_dotenv
+import os
 
 # Load environment variables
 load_dotenv()
 
-# Initialize Flask app
+# Initialize the Flask application
 app = Flask(__name__)
 
-# Set up OpenAI API key
-openai.api_key = os.getenv('OPENAI_API_KEY')
+# Set OpenAI API key from the environment variables
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Helper function to generate email response using OpenAI API
-def generate_email_response(prompt):
+# Define the homepage route to serve the frontend
+@app.route("/", methods=["GET"])
+def index():
+    return render_template("index.html")
+
+# Function to generate email response using OpenAI API
+def generate_email_response(data):
     try:
+        # Create a prompt based on the input data
+        prompt = f"""
+        Generate an email response with the following details:
+        From Name: {data['fromName']}
+        Client First Name: {data['clientName']}
+        Client Last Name: {data['clientLastName']}
+        Client Email: {data['clientEmail']}
+        Client Country: {data['clientCountry']}
+        Client Location: {data['clientLocation']}
+        Client Language: {data['clientLanguage']}
+        Project Type: {data['projectType']}
+        Service Category: {data['serviceCategory']}
+        Client Website: {data['clientWebsite']}
+        Client Message: {data['clientMessage']}
+        Provide a professional and polite response.
+        """
+
+        # Call the OpenAI API to generate the email
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": prompt},
-            ],
-            max_tokens=300,
-            temperature=0.7,
+            messages=[{"role": "user", "content": prompt}],
         )
-        return response['choices'][0]['message']['content'].strip()
+        return response["choices"][0]["message"]["content"]
     except Exception as e:
-        print(f"Error generating text: {e}")
-        return None
+        print(f"Error generating email: {e}")
+        return "Error generating email response."
 
-@app.route('/')
-def index():
-    return render_template('index.html')  # Serve the HTML form
-
-@app.route('/generate-response', methods=['POST'])
+# API endpoint to handle email response generation requests
+@app.route("/generate-response", methods=["POST"])
 def generate_response():
-    # Extract data from the form submission (JSON)
-    data = request.get_json()
-    from_name = data.get('fromName')
-    client_name = data.get('clientName')
-    client_last_name = data.get('clientLastName')
-    client_email = data.get('clientEmail')
-    client_country = data.get('clientCountry')
-    client_location = data.get('clientLocation')
-    client_language = data.get('clientLanguage')
-    project_type = data.get('projectType')
-    service_category = data.get('serviceCategory')
-    client_website = data.get('clientWebsite')
-    client_message = data.get('clientMessage')
+    try:
+        # Get JSON data from the request
+        data = request.get_json()
 
-    # Create the prompt to generate the email response
-    prompt = f"""
-        Generate a professional email response based on the following details:
-        From: {from_name}
-        To: {client_name} {client_last_name}
-        Email: {client_email}
-        Country: {client_country}
-        Location: {client_location}
-        Language: {client_language}
-        Project Type: {project_type}
-        Service Category: {service_category}
-        Website: {client_website}
-        Message: {client_message}
+        # Generate an email response using OpenAI
+        response = generate_email_response(data)
 
-        The email should be professional and include:
-        - A subject line
-        - A greeting
-        - An introduction
-        - A brief overview of the client's message
-        - A closing statement
+        # Return the generated response as JSON
+        return jsonify({"response": response})
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"error": "An error occurred while generating the response."}), 500
 
-        <p><strong>Subject:</strong> [Subject Line]</p>
-        <p><strong>Dear {client_name} {client_last_name},</strong></p>
-        <p>[Body of the email]</p>
-        <p><strong>Best regards,</strong><br>{from_name}</p>
-    """
-
-    # Generate the email response using OpenAI API
-    email_response = generate_email_response(prompt)
-
-    if email_response:
-        return jsonify({'response': email_response})
-    else:
-        return jsonify({'error': 'Error generating the response'}), 500
-
-if __name__ == '__main__':
+# Run the Flask application
+if __name__ == "__main__":
     app.run(debug=True)
